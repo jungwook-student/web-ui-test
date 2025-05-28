@@ -1,4 +1,6 @@
 'use server';
+import { RecommendBookInput, RecommendBookOutput } from './types';
+'use server';
 /**
  * 두 가지 방식의 도서 추천을 제공:
  * - 일반 입력: Genkit 기반 추천
@@ -8,20 +10,22 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
+import fetch from 'node-fetch';
+
 const RecommendBookInputSchema = z.object({
   age: z.number().describe('The age of the child.'),
   interests: z.string().describe('The interests of the child.'),
   readingLevel: z.string().describe('The reading level of the child.'),
   previousBooks: z.string().optional().describe('Previously read books by the child.'),
 });
-export type RecommendBookInput = z.infer<typeof RecommendBookInputSchema>;
+// export type RecommendBookInput = z.infer<typeof RecommendBookInputSchema>;
 
 const RecommendBookOutputSchema = z.object({
   bookTitle: z.string().describe('The title of the recommended book.'),
   author: z.string().describe('The author of the recommended book.'),
   reason: z.string().describe('Why this book is recommended for the child.'),
 });
-export type RecommendBookOutput = z.infer<typeof RecommendBookOutputSchema>;
+// export type RecommendBookOutput = z.infer<typeof RecommendBookOutputSchema>;
 
 // ✅ Genkit 기반 Prompt
 const prompt = ai.definePrompt({
@@ -63,7 +67,7 @@ const recommendBookFlow = ai.defineFlow(
 );
 
 // ✅ FastAPI 호출 함수
-async function callFastAPI(input: RecommendBookInput): Promise<RecommendBookOutput> {
+export async function callFastAPI(input: RecommendBookInput): Promise<RecommendBookOutput> {
   const response = await fetch("http://localhost:8080/recommend", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -90,7 +94,9 @@ async function callFastAPI(input: RecommendBookInput): Promise<RecommendBookOutp
 
 // ✅ 사용자 입력을 하나의 문장으로 구성
 function formatInput(input: RecommendBookInput): string {
-  return `${input.age}세 아이에게 ${input.readingLevel} 수준으로 읽을 수 있는 ${input.interests}에 관한 책을 추천해줘${input.previousBooks ? ` (이전에 읽은 책: ${input.previousBooks})` : ""}`;
+  const cleanInterests = input.interests.replace(/^@fastapi\s*/, '').trim();
+  const cleanReadingLevel = input.readingLevel.replace(/^@fastapi\s*/, '').trim();
+  return `${input.age}세 아이에게 ${cleanReadingLevel} 수준으로 읽을 수 있는 ${cleanInterests}에 관한 책을 추천해줘${input.previousBooks ? ` (이전에 읽은 책: ${input.previousBooks})` : ""}`;
 }
 
 // ✅ 최종 추천 함수
