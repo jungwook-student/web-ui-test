@@ -26,10 +26,20 @@ import { ChatMessage } from "@/components/chat/chat-message";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 
+type ConversationStep =
+  | "idle"
+  | "awaitingAge"
+  | "awaitingInterests"
+  | "awaitingReadingLevel"
+  | "awaitingPreviousBooks"
+  | "submitting";
+
 const initialBotMessage = (step: ConversationStep, name?: string): string => {
   switch (step) {
     case "awaitingAge":
-      return `안녕하세요$${name ? ` ${name}님` : ""}! 아이북에 오신 것을 환영합니다. 우리 아이에게 딱 맞는 책을 찾아드릴게요. 먼저 아이의 나이를 알려주시겠어요? (예: 7)`;
+      return `안녕하세요${
+        name ? ` ${name}님` : ""
+      }! 아이북에 오신 것을 환영합니다. 우리 아이에게 딱 맞는 책을 찾아드릴게요. 먼저 아이의 나이를 알려주시겠어요? (예: 7)`;
     case "awaitingInterests":
       return "관심사가 있다면 알려주세요. (예: 공룡, 우주, 공주)";
     case "awaitingReadingLevel":
@@ -41,14 +51,6 @@ const initialBotMessage = (step: ConversationStep, name?: string): string => {
   }
 };
 
-type ConversationStep =
-  | "idle"
-  | "awaitingAge"
-  | "awaitingInterests"
-  | "awaitingReadingLevel"
-  | "awaitingPreviousBooks"
-  | "submitting";
-
 export default function ChatPage() {
   const { isAuthenticated, logout, isLoading: authIsLoading } = useAuth();
   const router = useRouter();
@@ -58,7 +60,8 @@ export default function ChatPage() {
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
 
-  const [currentStep, setCurrentStep] = useState<ConversationStep>("awaitingAge");
+  const [currentStep, setCurrentStep] =
+    useState<ConversationStep>("awaitingAge");
   const [formData, setFormData] = useState<Partial<RecommendBookInput>>({});
 
   const [isAlertOpen, setIsAlertOpen] = useState(true);
@@ -67,24 +70,27 @@ export default function ChatPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const didInit = useRef(false);
 
-  const addMessage = useCallback((
-    sender: Message["sender"],
-    text?: string,
-    recommendation?: RecommendBookOutput,
-    isLoading?: boolean
-  ) => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now().toString() + Math.random(),
-        sender,
-        text,
-        recommendation,
-        isLoading,
-        timestamp: new Date(),
-      },
-    ]);
-  }, []);
+  const addMessage = useCallback(
+    (
+      sender: Message["sender"],
+      text?: string,
+      recommendation?: RecommendBookOutput,
+      isLoading?: boolean
+    ) => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString() + Math.random(),
+          sender,
+          text,
+          recommendation,
+          isLoading,
+          timestamp: new Date(),
+        },
+      ]);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!authIsLoading && !isAuthenticated) {
@@ -93,6 +99,7 @@ export default function ChatPage() {
   }, [isAuthenticated, authIsLoading, router]);
 
   useEffect(() => {
+    // Start conversation
     if (!didInit.current && messages.length === 0 && isAuthenticated) {
       addMessage("bot", initialBotMessage("awaitingAge"));
       setCurrentStep("awaitingAge");
@@ -101,159 +108,160 @@ export default function ChatPage() {
   }, [messages.length, isAuthenticated, addMessage]);
 
   useEffect(() => {
-    const viewport = scrollAreaRef.current?.querySelector("[data-radix-scroll-area-viewport]");
+    const viewport = scrollAreaRef.current?.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    );
+
     if (viewport) {
-      viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
+      viewport.scrollTo({
+        top: viewport.scrollHeight,
+        behavior: "smooth",
+      });
     }
+
     if (inputRef.current) {
       inputRef.current.focus();
     }
   }, [messages]);
 
-  const processUserInput = useCallback(async (userInput: string) => {
-    addMessage("user", userInput);
-    setInputValue("");
+  const processUserInput = useCallback(
+    async (userInput: string) => {
+      addMessage("user", userInput);
+      setInputValue("");
 
-    if (userInput.startsWith("@fastapi ")) {
-      const realQuery = userInput.replace("@fastapi ", "").trim();
-      addMessage("bot", "FastAPI 서버에 추천 요청 중입니다...");
+      let nextStep = currentStep;
+      const newFormData = { ...formData };
 
-      try {
-        const response = await fetch("http://localhost:8080/recommend", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ user_input: realQuery }),
-        });
-
-        if (!response.ok) {
-          throw new Error("FastAPI 요청 실패");
-        }
-
-        const data = await response.json();
-        const recommendations = data.recommendations;
-
-        if (!recommendations || recommendations.length === 0) {
-          addMessage("bot", "추천 결과가 없습니다.");
-        } else {
-          const resultText = recommendations
-            .map((b: any, idx: number) => `📘 ${idx + 1}. ${b.title} (${b.age}, ${b.types.join(", ")})`)
-            .join("\n");
-          addMessage("bot", resultText);
-        }
-      } catch (err: any) {
-        addMessage("bot", "FastAPI 호출 중 오류 발생: " + err.message);
+      if (
+        userInput.toLowerCase() === "새로운 추천" ||
+        userInput.toLowerCase() === "새로운추천"
+      ) {
+        addMessage("bot", initialBotMessage("awaitingAge"));
+        setCurrentStep("awaitingAge");
+        setFormData({});
+        return;
       }
 
-      return;
-    }
-
-    let nextStep = currentStep;
-    const newFormData = { ...formData };
-
-    if (
-      userInput.toLowerCase() === "새로운 추천" ||
-      userInput.toLowerCase() === "새로운추천"
-    ) {
-      addMessage("bot", initialBotMessage("awaitingAge"));
-      setCurrentStep("awaitingAge");
-      setFormData({});
-      return;
-    }
-
-    switch (currentStep) {
-      case "awaitingAge":
-        const age = parseInt(userInput);
-        if (isNaN(age) || age <= 0 || age > 18) {
-          addMessage("bot", "올바른 나이를 숫자로 입력해주세요. (예: 7)");
-        } else {
-          newFormData.age = age;
-          nextStep = "awaitingInterests";
+      switch (currentStep) {
+        case "awaitingAge":
+          const age = parseInt(userInput);
+          if (isNaN(age) || age <= 0 || age > 18) {
+            addMessage("bot", "올바른 나이를 숫자로 입력해주세요. (예: 7)");
+          } else {
+            newFormData.age = age;
+            nextStep = "awaitingInterests";
+            addMessage("bot", initialBotMessage(nextStep));
+          }
+          break;
+        case "awaitingInterests":
+          newFormData.interests = userInput;
+          nextStep = "awaitingReadingLevel";
           addMessage("bot", initialBotMessage(nextStep));
-        }
-        break;
-      case "awaitingInterests":
-        newFormData.interests = userInput;
-        nextStep = "awaitingReadingLevel";
-        addMessage("bot", initialBotMessage(nextStep));
-        break;
-      case "awaitingReadingLevel":
-        newFormData.readingLevel = userInput;
-        nextStep = "awaitingPreviousBooks";
-        addMessage("bot", initialBotMessage(nextStep));
-        break;
-      case "awaitingPreviousBooks":
-        if (userInput.toLowerCase() !== "없음") {
-          newFormData.previousBooks = userInput;
-        }
-        nextStep = "submitting";
-        break;
-      case "idle":
-        addMessage("bot", "추천을 받으시려면 '새로운 추천'이라고 입력해주세요.");
-        break;
-    }
-
-    setFormData(newFormData);
-    setCurrentStep(nextStep);
-
-    if (nextStep === "submitting") {
-      setIsSending(true);
-      const loadingMsgId = Date.now().toString() + Math.random();
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: loadingMsgId,
-          sender: "bot",
-          isLoading: true,
-          timestamp: new Date(),
-        },
-      ]);
-
-      try {
-        if (!newFormData.age || !newFormData.interests || !newFormData.readingLevel) {
-          throw new Error("필수 정보가 누락되었습니다.");
-        }
-
-        const recommendation = await recommendBook({
-          age: newFormData.age,
-          interests: newFormData.interests,
-          readingLevel: newFormData.readingLevel,
-          previousBooks: newFormData.previousBooks,
-        });
-
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === loadingMsgId
-              ? { ...msg, isLoading: false, recommendation, timestamp: new Date() }
-              : msg
-          )
-        );
-        addMessage("bot", "다른 책을 추천받고 싶으시면 '새로운 추천'이라고 입력해주세요.");
-        setCurrentStep("idle");
-        setFormData({});
-      } catch (error) {
-        console.error("Error getting recommendation:", error);
-        const errorText =
-          error instanceof Error
-            ? error.message
-            : "추천을 받는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === loadingMsgId
-              ? { ...msg, isLoading: false, text: `오류: ${errorText}`, timestamp: new Date() }
-              : msg
-          )
-        );
-        toast({ title: "추천 오류", description: errorText, variant: "destructive" });
-        addMessage("bot", "죄송합니다. 추천 중 문제가 발생했어요. '새로운 추천'으로 다시 시도해주세요.");
-        setCurrentStep("idle");
-        setFormData({});
-      } finally {
-        setIsSending(false);
+          break;
+        case "awaitingReadingLevel":
+          newFormData.readingLevel = userInput;
+          nextStep = "awaitingPreviousBooks";
+          addMessage("bot", initialBotMessage(nextStep));
+          break;
+        case "awaitingPreviousBooks":
+          if (userInput.toLowerCase() !== "없음") {
+            newFormData.previousBooks = userInput;
+          }
+          nextStep = "submitting";
+          break;
+        case "idle":
+          addMessage(
+            "bot",
+            "추천을 받으시려면 '새로운 추천'이라고 입력해주세요."
+          );
+          break;
       }
-    }
-  }, [currentStep, formData, addMessage, toast]);
+
+      setFormData(newFormData);
+      setCurrentStep(nextStep);
+
+      if (nextStep === "submitting") {
+        setIsSending(true);
+        const loadingMsgId = Date.now().toString() + Math.random();
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: loadingMsgId,
+            sender: "bot",
+            isLoading: true,
+            timestamp: new Date(),
+          },
+        ]);
+
+        try {
+          if (
+            !newFormData.age ||
+            !newFormData.interests ||
+            !newFormData.readingLevel
+          ) {
+            throw new Error("필수 정보가 누락되었습니다.");
+          }
+          const recommendation = await recommendBook({
+            age: newFormData.age,
+            interests: newFormData.interests,
+            readingLevel: newFormData.readingLevel,
+            previousBooks: newFormData.previousBooks,
+          });
+
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === loadingMsgId
+                ? {
+                    ...msg,
+                    isLoading: false,
+                    recommendation,
+                    timestamp: new Date(),
+                  }
+                : msg
+            )
+          );
+          addMessage(
+            "bot",
+            "다른 책을 추천받고 싶으시면 '새로운 추천'이라고 입력해주세요."
+          );
+          setCurrentStep("idle");
+          setFormData({});
+        } catch (error) {
+          console.error("Error getting recommendation:", error);
+          const errorText =
+            error instanceof Error
+              ? error.message
+              : "추천을 받는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === loadingMsgId
+                ? {
+                    ...msg,
+                    isLoading: false,
+                    text: `오류: ${errorText}`,
+                    timestamp: new Date(),
+                  }
+                : msg
+            )
+          );
+          toast({
+            title: "추천 오류",
+            description: errorText,
+            variant: "destructive",
+          });
+          addMessage(
+            "bot",
+            "죄송합니다. 추천 중 문제가 발생했어요. '새로운 추천'으로 다시 시도해주세요."
+          );
+          setCurrentStep("idle");
+          setFormData({});
+        } finally {
+          setIsSending(false);
+        }
+      }
+    },
+    [currentStep, formData, addMessage, toast]
+  );
 
   const handleSend = () => {
     if (inputValue.trim() && !isSending) {
@@ -283,7 +291,12 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-[100dvh] bg-background max-w-lg mx-auto border-x border-border/50 shadow-lg">
       <header className="flex items-center justify-between p-3 border-b bg-card shadow-sm">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/login")} className="md:hidden">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.push("/login")}
+          className="md:hidden"
+        >
           <ArrowLeft className="h-7 w-7 text-muted-foreground" />
         </Button>
         <div className="flex items-center space-x-2">
@@ -310,7 +323,8 @@ export default function ChatPage() {
                 사용방법
               </AlertTitle>
               <AlertDescription className="text-accent-foreground text-base">
-                AI가 아이의 연령, 관심사, 독서 수준에 맞는 책을 추천해 드립니다. 대화를 시작해보세요!
+                AI가 아이의 연령, 관심사, 독서 수준에 맞는 책을 추천해 드립니다.
+                대화를 시작해보세요!
               </AlertDescription>
             </Alert>
           </div>
@@ -328,7 +342,9 @@ export default function ChatPage() {
           <Input
             ref={inputRef}
             type="text"
-            placeholder={isSending ? "답변을 기다리는 중..." : "메시지를 입력하세요..."}
+            placeholder={
+              isSending ? "답변을 기다리는 중..." : "메시지를 입력하세요..."
+            }
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
@@ -338,16 +354,23 @@ export default function ChatPage() {
           />
           <Button
             onClick={handleSend}
-            disabled={isSending || !inputValue.trim() || currentStep === "submitting"}
+            disabled={
+              isSending || !inputValue.trim() || currentStep === "submitting"
+            }
             size="icon"
             className="shrink-0"
             aria-label="메시지 전송"
           >
-            {isSending ? <Loader2 className="h-6 w-6 animate-spin" /> : <Send className="h-6 w-6" />}
+            {isSending ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <Send className="h-6 w-6" />
+            )}
           </Button>
         </div>
         <p className="text-sm text-muted-foreground mt-2 text-center">
-          Enter 키로 메시지를 전송할 수 있습니다. <CornerDownLeft className="inline h-3 w-3" />
+          Enter 키로 메시지를 전송할 수 있습니다.{" "}
+          <CornerDownLeft className="inline h-3 w-3" />
         </p>
       </footer>
     </div>
