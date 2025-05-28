@@ -126,69 +126,6 @@ export default function ChatPage() {
 
   const processUserInput = useCallback(
     async (userInput: string) => {
-      // FastAPI special command
-      if (userInput.startsWith("@fastapi ")) {
-        try {
-          setIsSending(true);
-          const loadingMsgId = Date.now().toString() + Math.random();
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: loadingMsgId,
-              sender: "bot",
-              isLoading: true,
-              timestamp: new Date(),
-            },
-          ]);
-
-          const response = await fetch("http://localhost:8080/recommend", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ user_input: userInput.replace("@fastapi ", "") }),
-          });
-
-          if (!response.ok) {
-            throw new Error(`FastAPI 호출 실패: ${response.statusText}`);
-          }
-
-          const result = await response.json();
-
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === loadingMsgId
-                ? {
-                    ...msg,
-                    isLoading: false,
-                    text: `📚 추천 도서: ${result.bookTitle}\n✍️ 작가: ${result.author}\n💡 이유: ${result.reason}`,
-                    timestamp: new Date(),
-                  }
-                : msg
-            )
-          );
-        } catch (error) {
-          console.error("FastAPI 호출 중 오류 발생:", error);
-          const errorText =
-            error instanceof Error ? error.message : "FastAPI 호출 실패";
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === loadingMsgId
-                ? {
-                    ...msg,
-                    isLoading: false,
-                    text: `❌ 오류: ${errorText}`,
-                    timestamp: new Date(),
-                  }
-                : msg
-            )
-          );
-        } finally {
-          setIsSending(false);
-        }
-        return;
-      }
-
       addMessage("user", userInput);
       setInputValue("");
 
