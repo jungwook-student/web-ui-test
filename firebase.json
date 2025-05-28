@@ -1,0 +1,8 @@
+{
+  "hosting": {
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "frameworksBackend": {
+      "framework": "nextjs"
+    }
+  }
+}
