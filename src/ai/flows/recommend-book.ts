@@ -28,8 +28,8 @@ export type RecommendBookOutput = z.infer<typeof RecommendBookOutputSchema>;
 
 export async function recommendBook(input: RecommendBookInput): Promise<RecommendBookOutput> {
   // ✅ FastAPI 분기 처리
-  if (input.age.trim().startsWith("@fastapi ")) {
-    const query = input.age.replace("@fastapi ", "").trim();
+  if (input.interests.trim().startsWith("@fastapi ")) {
+    const query = input.interests.replace("@fastapi ", "").trim();
 
     try {
       const response = await fetch("http://localhost:8080/recommend", {
