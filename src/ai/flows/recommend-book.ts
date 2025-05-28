@@ -27,6 +27,42 @@ const RecommendBookOutputSchema = z.object({
 export type RecommendBookOutput = z.infer<typeof RecommendBookOutputSchema>;
 
 export async function recommendBook(input: RecommendBookInput): Promise<RecommendBookOutput> {
+  // ✅ FastAPI 분기 처리
+  if (input.age.trim().startsWith("@fastapi ")) {
+    const query = input.age.replace("@fastapi ", "").trim();
+
+    try {
+      const response = await fetch("http://localhost:8080/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_input: query }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`FastAPI 호출 실패: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!data?.recommendations?.length) {
+        throw new Error("추천 결과 없음");
+      }
+
+      return {
+        bookTitle: data.recommendations[0]?.bookTitle || "제목 없음",
+        author: data.recommendations[0]?.author || "저자 미상",
+        reason: data.recommendations[0]?.reason || "추천 사유 없음",
+      };
+    } catch (error) {
+      console.error("🔥 FastAPI 호출 오류:", error);
+      return {
+        bookTitle: "FastAPI 호출 실패",
+        author: "-",
+        reason: "FastAPI에서 추천 결과를 가져오지 못했습니다.",
+      };
+    }
+  }
+
   return recommendBookFlow(input);
 }
 
