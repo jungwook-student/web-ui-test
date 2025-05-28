@@ -1,71 +1,98 @@
-//recommend-book.ts
 'use server';
-/**
- * @fileOverview Recommends books for children based on their age, interests, and reading level.
- *
- * - recommendBook - A function that recommends books.
- * - RecommendBookInput - The input type for the recommendBook function.
- * - RecommendBookOutput - The return type for the recommendBook function.
- */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { z } from 'genkit';
 
-const RecommendBookInputSchema = z.object({
-  age: z.number().describe('The age of the child.'),
-  interests: z.string().describe('The interests of the child.'),
-  readingLevel: z.string().describe('The reading level of the child.'),
-  previousBooks: z.string().optional().describe('Previously read books by the child.'),
+export const RecommendBookInputSchema = z.object({
+  age: z.number(),
+  interests: z.string(),
+  readingLevel: z.string(),
+  previousBooks: z.string().optional(),
 });
 export type RecommendBookInput = z.infer<typeof RecommendBookInputSchema>;
 
-const RecommendBookOutputSchema = z.object({
-  bookTitle: z.string().describe('The title of the recommended book.'),
-  author: z.string().describe('The author of the recommended book.'),
-  reason: z.string().describe('Why this book is recommended for the child.'),
+export const RecommendBookOutputSchema = z.object({
+  bookTitle: z.string(),
+  author: z.string(),
+  reason: z.string(),
 });
 export type RecommendBookOutput = z.infer<typeof RecommendBookOutputSchema>;
 
-export async function recommendBook(input: RecommendBookInput): Promise<RecommendBookOutput> {
-  return recommendBookFlow(input);
-}
+export async function recommendBook(
+  input: RecommendBookInput
+): Promise<RecommendBookOutput> {
+  // FastAPI 요청 처리
+  if (
+    typeof input.interests === 'string' &&
+    input.interests.startsWith('@fastapi ')
+  ) {
+    try {
+      const response = await fetch('http://localhost:8080/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_input: input.interests.replace('@fastapi ', '') }),
+      });
 
-const prompt = ai.definePrompt({
-  name: 'recommendBookPrompt',
-  input: { schema: RecommendBookInputSchema },
-  output: { schema: RecommendBookOutputSchema },
-  prompt: `
-You are a helpful chatbot that recommends books for children. The user will provide the child's age, interests, and reading level.
+      if (!response.ok) {
+        throw new Error('FastAPI 서버 응답 오류');
+      }
+
+      const result = await response.json();
+      const top = result.recommendations?.[0];
+
+      if (!top) throw new Error('추천 결과 없음');
+
+      return {
+        bookTitle: top.title || '제목 없음',
+        author: top.author || '작자 미상',
+        reason: 'FastAPI 모델 기반 추천입니다.',
+      };
+    } catch (e) {
+      return {
+        bookTitle: '추천 실패',
+        author: '',
+        reason: (e as Error).message,
+      };
+    }
+  }
+
+  // 기본 Genkit 흐름
+  const { ai } = await import('@/ai/genkit');
+
+  const prompt = ai.definePrompt({
+    name: 'recommendBookPrompt',
+    input: { schema: RecommendBookInputSchema },
+    output: { schema: RecommendBookOutputSchema },
+    prompt: `
+You are a helpful chatbot that recommends books for children.
 
 {% if previousBooks %}
-The child has previously read the following books: {{previousBooks}}
+The child has previously read: {{previousBooks}}
 {% endif %}
 
-Recommend a Korean children's book that matches the child's profile.
-**All fields in your answer (title, author, description) must be written ONLY in Korean. Do not use English, Russian, or other foreign words. Only use Korean.**
-Provide the following details in your answer **in JSON format**:
-
-- title: book title in Korean
-- author: author name in Korean
-- description: a short description in Korean
-
-If you cannot find a suitable book, respond with a message in Korean saying that you could not find a suitable book.
+Recommend a Korean children's book that matches this profile.
+Respond ONLY in Korean with:
+- title: 책 제목
+- author: 저자명
+- description: 간단한 설명
 
 Child profile:
 - Age: {{{age}}}
 - Interests: {{{interests}}}
 - Reading Level: {{{readingLevel}}}
-  `,
-});
+    `,
+  });
 
-const recommendBookFlow = ai.defineFlow(
-  {
-    name: 'recommendBookFlow',
-    inputSchema: RecommendBookInputSchema,
-    outputSchema: RecommendBookOutputSchema,
-  },
-  async input => {
-    const {output} = await prompt(input);
-    return output!;
-  }
-);
+  const recommendBookFlow = ai.defineFlow(
+    {
+      name: 'recommendBookFlow',
+      inputSchema: RecommendBookInputSchema,
+      outputSchema: RecommendBookOutputSchema,
+    },
+    async (input) => {
+      const { output } = await prompt(input);
+      return output!;
+    }
+  );
+
+  return recommendBookFlow(input);
+}
