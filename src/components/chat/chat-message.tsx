@@ -16,7 +16,7 @@ export interface Message {
   id: string;
   sender: "user" | "bot" | "system";
   text?: string;
-  recommendation?: RecommendBookOutput;
+  recommendation?: RecommendBookOutput | RecommendBookOutput[];
   isLoading?: boolean;
   timestamp: Date;
 }
@@ -33,10 +33,11 @@ const BookRecommendationCard = ({
   const PLACEHOLDER_IMG = `https://placehold.co/300x200.png?text=${encodeURIComponent(
     recommendation.bookTitle
   )}`;
-  const [imgSrc, setImgSrc] = useState(PLACEHOLDER_IMG);
+  const [imgSrc, setImgSrc] = useState(recommendation.imageUrl || PLACEHOLDER_IMG);
 
   // Google Books API로 이미지 보완
   useEffect(() => {
+    if (recommendation.imageUrl) return;
     const fetchImageFromGoogleBooks = async (title: string) => {
       try {
         const res = await fetch(
@@ -57,7 +58,7 @@ const BookRecommendationCard = ({
     };
 
     fetchImageFromGoogleBooks(recommendation.bookTitle);
-  }, [recommendation.bookTitle]);
+  }, [recommendation.imageUrl, recommendation.bookTitle]);
 
   return (
     <div className="mt-2 bg-card border-primary/50">
@@ -91,6 +92,16 @@ const BookRecommendationCard = ({
       <div className="text-sm text-muted-foreground mt-4">
         AI 추천 도서입니다.
       </div>
+    </div>
+  );
+};
+
+const BookRecommendationList = ({ recommendations }: { recommendations: RecommendBookOutput[] }) => {
+  return (
+    <div className="space-y-4 mt-2">
+      {recommendations.map((rec, idx) => (
+        <BookRecommendationCard key={idx} recommendation={rec} />
+      ))}
     </div>
   );
 };
@@ -152,11 +163,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
               {message.text && (
                 <p className="whitespace-pre-wrap text-base">{message.text}</p>
               )}
-              {message.recommendation && (
-                <BookRecommendationCard
-                  recommendation={message.recommendation}
-                />
-              )}
+              {message.recommendation &&
+                (Array.isArray(message.recommendation) ? (
+                  <BookRecommendationList recommendations={message.recommendation} />
+                ) : (
+                  <BookRecommendationCard recommendation={message.recommendation} />
+                ))}
             </>
           )}
           {!isUser && !message.isLoading && (
