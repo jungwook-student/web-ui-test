@@ -6,6 +6,127 @@ body {
   font-family: var(--font-noto-sans-kr), Arial, Helvetica, sans-serif;
 }
 
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-4 {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Book scroll container - custom implementation */
+  .book-scroll-container {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.6) hsl(var(--muted));
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  .book-scroll-container::-webkit-scrollbar {
+    height: 14px;
+  }
+
+  .book-scroll-container::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 7px;
+    margin: 0 8px;
+  }
+
+  .book-scroll-container::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.6);
+    border-radius: 7px;
+    border: 2px solid hsl(var(--background));
+  }
+
+  .book-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.8);
+  }
+
+  .book-list {
+    display: flex !important;
+    gap: 16px !important;
+    width: max-content !important;
+    min-width: 100% !important;
+  }
+
+  /* Enhanced horizontal scroll styles */
+  .overflow-x-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.5) hsl(var(--muted));
+    overflow-x: scroll !important;
+    overflow-y: hidden !important;
+  }
+
+  .overflow-x-scroll::-webkit-scrollbar {
+    height: 12px;
+    width: 12px;
+  }
+
+  .overflow-x-scroll::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 6px;
+    margin: 0 4px;
+  }
+
+  .overflow-x-scroll::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.5);
+    border-radius: 6px;
+    border: 2px solid hsl(var(--background));
+  }
+
+  .overflow-x-scroll::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.7);
+  }
+
+  .overflow-x-scroll::-webkit-scrollbar-corner {
+    background: hsl(var(--muted));
+  }
+
+  /* Custom scrollbar for other overflow-x-auto elements */
+  .overflow-x-auto {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) hsl(var(--muted));
+  }
+
+  .overflow-x-auto::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 4px;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 4px;
+  }
+
+  .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  /* Force horizontal scroll behavior */
+  .force-horizontal-scroll {
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    width: 100%;
+    min-width: 100%;
+  }
+}
+
 @layer base {
   :root {
     --background: 207 100% 95%; /* #E3F2FD - Light, desaturated blue */

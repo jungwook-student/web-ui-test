@@ -28,26 +28,17 @@ import { useToast } from "@/hooks/use-toast";
 
 type ConversationStep =
   | "idle"
-  | "awaitingAge"
-  | "awaitingInterests"
-  | "awaitingReadingLevel"
-  | "awaitingPreviousBooks"
-  | "submitting";
+  | "awaitingUserInput";
 
 const initialBotMessage = (step: ConversationStep, name?: string): string => {
   switch (step) {
-    case "awaitingAge":
+    case "awaitingUserInput":
       return `안녕하세요${
         name ? ` ${name}님` : ""
-      }! 아이북에 오신 것을 환영합니다. 우리 아이에게 딱 맞는 책을 찾아드릴게요. 먼저 아이의 나이를 알려주시겠어요? (예: 7)`;
-    case "awaitingInterests":
-      return "관심사가 있다면 알려주세요. (예: 공룡, 우주, 공주)";
-    case "awaitingReadingLevel":
-      return "읽기 수준은 어느 정도인가요? (예: 그림 위주, 글씨 조금, 글씨 많음)";
-    case "awaitingPreviousBooks":
-      return "혹시 이전에 재미있게 읽었던 책이 있나요? 있다면 알려주세요. 없다면 '없음'이라고 입력해주세요.";
+      }! 아이북에 오신 것을 환영합니다. 우리 아이에게 딱 맞는 책을 찾아드릴게요.`;
+
     default:
-      return "무엇을 도와드릴까요? '새로운 추천'이라고 입력하시면 추천을 시작할 수 있습니다.";
+      return "추천중입니다...";
   }
 };
 
@@ -61,7 +52,7 @@ export default function ChatPage() {
   const [isSending, setIsSending] = useState(false);
 
   const [currentStep, setCurrentStep] =
-    useState<ConversationStep>("awaitingAge");
+    useState<ConversationStep>("awaitingUserInput");
   const [formData, setFormData] = useState<Partial<RecommendBookInput>>({});
 
   const [isAlertOpen, setIsAlertOpen] = useState(true);
@@ -101,8 +92,8 @@ export default function ChatPage() {
   useEffect(() => {
     // Start conversation
     if (!didInit.current && messages.length === 0 && isAuthenticated) {
-      addMessage("bot", initialBotMessage("awaitingAge"));
-      setCurrentStep("awaitingAge");
+      addMessage("bot", initialBotMessage("awaitingUserInput"));
+      setCurrentStep("awaitingUserInput");
       didInit.current = true;
     }
   }, [messages.length, isAuthenticated, addMessage]);
@@ -126,6 +117,11 @@ export default function ChatPage() {
 
   const processUserInput = useCallback(
     async (userInput: string) => {
+      // 이미 처리 중이면 중복 실행 방지
+      if (isSending) {
+        return;
+      }
+        
       addMessage("user", userInput);
       setInputValue("");
 
@@ -136,51 +132,27 @@ export default function ChatPage() {
         userInput.toLowerCase() === "새로운 추천" ||
         userInput.toLowerCase() === "새로운추천"
       ) {
-        addMessage("bot", initialBotMessage("awaitingAge"));
-        setCurrentStep("awaitingAge");
+        addMessage("bot", initialBotMessage("awaitingUserInput"));
+        setCurrentStep("awaitingUserInput");
         setFormData({});
         return;
       }
 
       switch (currentStep) {
-        case "awaitingAge":
-          const age = parseInt(userInput);
-          if (isNaN(age) || age <= 0 || age > 18) {
-            addMessage("bot", "올바른 나이를 숫자로 입력해주세요. (예: 7)");
-          } else {
-            newFormData.age = age;
-            nextStep = "awaitingInterests";
-            addMessage("bot", initialBotMessage(nextStep));
-          }
+        case "awaitingUserInput":
+          newFormData.userInput = userInput;
+          nextStep = "idle";
+
           break;
-        case "awaitingInterests":
-          newFormData.interests = userInput;
-          nextStep = "awaitingReadingLevel";
-          addMessage("bot", initialBotMessage(nextStep));
-          break;
-        case "awaitingReadingLevel":
-          newFormData.readingLevel = userInput;
-          nextStep = "awaitingPreviousBooks";
-          addMessage("bot", initialBotMessage(nextStep));
-          break;
-        case "awaitingPreviousBooks":
-          if (userInput.toLowerCase() !== "없음") {
-            newFormData.previousBooks = userInput;
-          }
-          nextStep = "submitting";
-          break;
+
         case "idle":
-          addMessage(
-            "bot",
-            "추천을 받으시려면 '새로운 추천'이라고 입력해주세요."
-          );
           break;
       }
 
       setFormData(newFormData);
       setCurrentStep(nextStep);
 
-      if (nextStep === "submitting") {
+      if (currentStep === "awaitingUserInput") {
         setIsSending(true);
         const loadingMsgId = Date.now().toString() + Math.random();
         setMessages((prev) => [
@@ -194,18 +166,8 @@ export default function ChatPage() {
         ]);
 
         try {
-          if (
-            !newFormData.age ||
-            !newFormData.interests ||
-            !newFormData.readingLevel
-          ) {
-            throw new Error("필수 정보가 누락되었습니다.");
-          }
           const recommendation = await recommendBook({
-            age: newFormData.age,
-            interests: newFormData.interests,
-            readingLevel: newFormData.readingLevel,
-            previousBooks: newFormData.previousBooks,
+            userInput: newFormData.userInput
           });
 
           setMessages((prev) =>
@@ -222,7 +184,7 @@ export default function ChatPage() {
           );
           addMessage(
             "bot",
-            "다른 책을 추천받고 싶으시면 '새로운 추천'이라고 입력해주세요."
+            "추천을 받고 싶은 내용을 입력해주세요."
           );
           setCurrentStep("idle");
           setFormData({});
@@ -264,15 +226,20 @@ export default function ChatPage() {
   );
 
   const handleSend = () => {
-    if (inputValue.trim() && !isSending) {
-      processUserInput(inputValue.trim());
+    if (!inputValue.trim() || isSending) {
+        return;
     }
+      
+    processUserInput(inputValue.trim());
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      // 이미 전송 중이거나 입력값이 없으면 중복 실행 방지
+      if (inputValue.trim() && !isSending) {
+        handleSend();
+      }
     }
   };
 
@@ -310,7 +277,10 @@ export default function ChatPage() {
         </Button>
       </header>
 
-      <ScrollArea className="flex-grow px-4" ref={scrollAreaRef}>
+      <ScrollArea
+              className="flex-grow px-4 w-full max-w-[512px]"
+              ref={scrollAreaRef}
+            >
         {isAlertOpen && (
           <div className="px-3">
             <Alert
@@ -348,14 +318,14 @@ export default function ChatPage() {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
-            disabled={isSending || currentStep === "submitting"}
+            disabled={isSending}
             className="flex-grow text-base focus-visible:ring-1 focus-visible:ring-primary"
             aria-label="채팅 메시지 입력"
           />
           <Button
             onClick={handleSend}
             disabled={
-              isSending || !inputValue.trim() || currentStep === "submitting"
+              isSending || !inputValue.trim()
             }
             size="icon"
             className="shrink-0"
