@@ -20,10 +20,12 @@ const RecommendBookInputSchema = z.object({
 export type RecommendBookInput = z.infer<typeof RecommendBookInputSchema>;
 
 const RecommendBookOutputSchema = z.array(z.object({
-  bookTitle: z.string().describe('The title of the recommended book.'),
+  title: z.string().describe('The title of the recommended book.'),
   author: z.string().describe('The author of the recommended book.'),
   reason: z.string().describe('Why this book is recommended for the child.'),
-  imageUrl: z.string().optional().describe('Cover image URL of the recommended book.'),
+  cover: z.string().optional().describe('Cover image URL of the recommended book.'),
+  publisher: z.string().optional().describe('The publisher of the recommended book.'),
+  priceSales: z.string().optional().describe('The priceSales of the recommended book.'),
 }));
 export type RecommendBookOutput = z.infer<typeof RecommendBookOutputSchema>;
 
@@ -49,18 +51,22 @@ export async function recommendBook(input: RecommendBookInput): Promise<Recommen
       }
 
       return books.map((book: any) => ({
-        bookTitle: book.title || "제목 없음",
+          title: book.title || "제목 없음",
         author: book.author || "저자 미상",
         reason: book.description || "추천 사유 없음",
-        imageUrl: book.cover || undefined,
+        cover: book.cover || undefined,
+        publisher: book.publisher || "출판사 알수 없음",
+        priceSales: book.priceSales || "가격 미정",
       }));
     } catch (error) {
       console.error("🔥 FastAPI 호출 오류:", error);
       return [{
-        bookTitle: "FastAPI 호출 실패",
+        title: "FastAPI 호출 실패",
         author: "-",
         reason: "FastAPI에서 추천 결과를 가져오지 못했습니다.",
-        imageUrl: undefined,
+        cover: undefined,
+        publisher: "",
+        priceSales : "",
       }];
     }
 }
